@@ -5,7 +5,7 @@ OPTIONS
       "side": ["Both", "One", "Two"],
       "sortOrder": ["MATCH ASC", "FILE DATE ASC", "FILE NUMBER ASC", "TYPE ASC", "MATCH DESC", "FILE DATE DESC", "FILE NUMBER DESC", "TYPE DESC"],
       "searchMode": ["ByDate", "ByName", "ByType", "ByMunicipality", "BySubdivision", "BySTR", "ByInstrument", "ByBookPage", "ByFiche", "ByPre1980"],
-      "exportMode": ["ExportDataOnly", "ExportImagesOnly", "All"]
+      "exportMode": ["ExportDataOnly", "ExportImageOnly", "All"]
       "properties": ["AMITYVILLE", "ARLINGTON", "BACHMAN", "BEAVERTOWN", "BROOKVILLE", "CARLISLE", "CENTERVILLE", "CHAMBERSBURG", "CLAY TOWNSHIP", "CLAYTON", "DAYTON", "DODSON", "ENGLEWOOD", "FARMERSVILLE", "GERMAN TOWNSHIP", "GERMANTOWN", "HARRISON TOWNSHIP", "JEFFERSON TOWNSHIP", "JOHNSVILLE", "KETTERING", "LIBERTY", "LITTLE YORK", "MADISON TOWNSHIP", "MIAMISBURG", "MORAINE", "MURLIN HEIGHTS", "NEW LEBANON", "OAKWOOD", "PHILLIPSBURG", "PYRMONT", "RIVERSIDE", "SALEM", "SPRINGBORO (MONTGOMERY & WARREN)", "SUNBURY", "TROTWOOD", "UNION", "VANDALIA", "VERONA", "WEST CARROLLTON", "WOODBOURNE"]
 
       "section": ["01", "02", "03", "...", "39"],
@@ -144,7 +144,7 @@ OPTIONS
   "book": "2000",
   "page": "100",
   "pageThru": "",
-  "bookPageIndexType": "All",         // ["%", "DBK", "MBK", "PBK"]
+  "bookPageIndexType": "All",         // ["All", "DBK", "MBK", "PBK"]
   "exportMode": "ExportImageOnly"
 }
 
@@ -153,7 +153,7 @@ OPTIONS
 
 {
   "searchMode": "ByFiche",
-  "fiche": "910022a05",
+  "fiche": "910022a05",      // limit 6 to 10 alphanumeric characters
   "indexTypes": ["Deeds", "Mortgages", "UCC"],
   "sortOrder": "FILE DATE DESC",      // Or FILE DATE ASC
   "exportMode": "ExportDataOnly"
@@ -164,8 +164,8 @@ OPTIONS
 
 {
  "searchMode": "ByPre1980",
-  "pre1980Year": "1971",
+  "pre1980Year": "1971",      // 1971 <= pre1980Year <= 1979 
   "pre1980Number": "1",
-  "pre1980IndexType": "All",
-  "exportMode": "ExportDataOnly"    // ["%", "PDE", "PMT"]
+  "pre1980IndexType": "All",     // ["All", "PDE", "PMT"]
+  "exportMode": "ExportDataOnly"    
 }
