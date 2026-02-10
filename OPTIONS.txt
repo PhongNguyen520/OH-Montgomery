@@ -1,0 +1,171 @@
+OPTIONS
+   - single_choice: 
+      "lastNameSearch": ["BeginWith", "Contains", "Exactly"],
+      "firstNameSearch": ["BeginWith", "Contains", "Exactly"],
+      "side": ["Both", "One", "Two"],
+      "sortOrder": ["MATCH ASC", "FILE DATE ASC", "FILE NUMBER ASC", "TYPE ASC", "MATCH DESC", "FILE DATE DESC", "FILE NUMBER DESC", "TYPE DESC"],
+      "searchMode": ["ByDate", "ByName", "ByType", "ByMunicipality", "BySubdivision", "BySTR", "ByInstrument", "ByBookPage", "ByFiche", "ByPre1980"],
+      "exportMode": ["ExportDataOnly", "ExportImagesOnly", "All"]
+      "properties": ["AMITYVILLE", "ARLINGTON", "BACHMAN", "BEAVERTOWN", "BROOKVILLE", "CARLISLE", "CENTERVILLE", "CHAMBERSBURG", "CLAY TOWNSHIP", "CLAYTON", "DAYTON", "DODSON", "ENGLEWOOD", "FARMERSVILLE", "GERMAN TOWNSHIP", "GERMANTOWN", "HARRISON TOWNSHIP", "JEFFERSON TOWNSHIP", "JOHNSVILLE", "KETTERING", "LIBERTY", "LITTLE YORK", "MADISON TOWNSHIP", "MIAMISBURG", "MORAINE", "MURLIN HEIGHTS", "NEW LEBANON", "OAKWOOD", "PHILLIPSBURG", "PYRMONT", "RIVERSIDE", "SALEM", "SPRINGBORO (MONTGOMERY & WARREN)", "SUNBURY", "TROTWOOD", "UNION", "VANDALIA", "VERONA", "WEST CARROLLTON", "WOODBOURNE"]
+
+      "section": ["01", "02", "03", "...", "39"],
+      "township": ["1", "2", "3", "4", "5", "6", "8"],
+      "range": ["5", "4E", "5E", "6E", "5MRS", "6MRS", "7MRS", "8MRS"]
+      "pre1980Year": ["1971", "1972", "1973", "1974", "1975", "1976", "1977", "1978", "1979"],
+      "pre1980IndexType": ["%", "PDE", "PMT"]
+   - multi_choice: 
+      "indexTypes": ["Deeds", "Mortgages", "Partnerships", "UCC", "Service Discharge", "Veteran Graves"],
+      "documentTypes": ["DEED", "MORTGAGE", "RELEASE OF MORTGAGE", "AFFIDAVIT (MORTGAGE)", "SHERIFF'S DEED", "..."]
+      "subdivisions": ["ABBEY (LOTS 9 - 32)", "ACCENT PARK S01 (LOTS 1 - 14)", "A & C INCORPORATED PLAT (LOTS 1 - 1)", "..."]
+
+=========BY DATE===========
+{
+    "searchMode": "ByDate",
+    "startDate": "2026-02-06",
+    "endDate": "2026-02-06",
+    "indexTypes": [
+        "Deeds",
+        "Mortgages",
+        "Partnerships",
+        "UCC",
+        "Service Discharge"
+    ],
+    "exportMode": "ExportDataOnly",
+    "sortOrder": "FILE DATE ASC"
+}
+
+
+========BY NAME===========
+
+{
+  "searchMode": "ByName",
+  "lastName": "ALEX",
+  "firstName": "",
+  "lastNameSearch": "Contains",
+  "firstNameSearch": "BeginWith",
+  "side": "Both",
+  "startDate": "2026-02-06",
+  "endDate": "2026-02-06",
+  "indexTypes": ["Deeds", "Mortgages", "Partnerships", "UCC"],
+  "sortOrder": "FILE DATE ASC",
+  "exportMode": "All"
+}
+
+=========BY TYPE============
+
+{
+  "searchMode": "ByType",
+  "documentTypes": ["AFFIDAVIT (MORTGAGE)"],
+  "includeFederalLien": false,
+  "indexTypes": ["Deeds", "Mortgages", "Partnerships", "UCC"],
+  "lastName": "",
+  "firstName": "",
+  "lastNameSearch": "BeginWith",
+  "firstNameSearch": "BeginWith",
+  "side": "Both",
+  "startDate": "2026-02-06",
+  "endDate": "2026-02-06",
+  "sortOrder": "FILE DATE ASC",
+  "exportMode": "ExportDataOnly"
+}
+
+
+==========BY MUNICIPALITY========
+
+{
+  "searchMode": "ByMunicipality",
+  "properties": "AMITYVILLE",
+  "lot": "",
+  "indexTypes": ["Deeds", "Mortgages", "Partnerships", "UCC"],
+  "sortOrder": "FILE DATE ASC",
+  "lastName": "",
+  "firstName": "",
+  "lastNameSearch": "BeginWith",
+  "firstNameSearch": "BeginWith",
+  "startDate": "",
+  "endDate": "",
+  "exportMode": "ExportDataOnly"
+}
+
+
+=============BY SUBDIVISION============
+
+{
+"searchMode": "BySubdivision",
+  "subdivisions": ["A & C INCORPORATED PLAT (LOTS 1 - 1)"],
+  "lot": "",
+  "indexTypes": ["Deeds", "Mortgages", "Partnerships", "UCC"],
+  "sortOrder": "FILE DATE ASC",
+  "lastName": "",
+  "firstName": "",
+  "lastNameSearch": "BeginWith",
+  "firstNameSearch": "BeginWith",
+  "startDate": "",
+  "endDate": "",
+  "exportMode": "ExportDataOnly"
+}
+
+=============BY STR===================
+
+{
+  "searchMode": "BySTR", 
+  "properties": "DAYTON",      ["ALL", "BACHMAN", "DAYTON", "KETTERING", "MIAMISBURG", "..."]
+  "section": "01",
+  "township": "",
+  "range": "",
+  "indexTypes": ["Deeds", "Mortgages", "Partnerships", "UCC"],
+  "sortOrder": "FILE DATE ASC",
+  "lastName": "",
+  "firstName": "",
+  "lastNameSearch": "BeginWith",
+  "firstNameSearch": "BeginWith",
+  "startDate": "",
+  "endDate": "",
+  "exportMode": "ExportDataOnly"
+}
+
+
+==============BY INSTRUMENT==========
+
+{
+  "searchMode": "ByInstrument",
+  "instrumentYear": "2024",    
+  "instrumentNumber": "12345",
+  "indexTypes": ["Deeds", "Mortgages", "Partnerships", "UCC"],
+  "sortOrder": "FILE DATE ASC",
+  "exportMode": "ExportDataOnly"
+}
+
+
+=============BY BOOK/PAGE===========
+
+{
+  "searchMode": "ByBookPage",
+  "book": "2000",
+  "page": "100",
+  "pageThru": "",
+  "bookPageIndexType": "All",         // ["%", "DBK", "MBK", "PBK"]
+  "exportMode": "ExportImageOnly"
+}
+
+
+==============BY FICHE=============
+
+{
+  "searchMode": "ByFiche",
+  "fiche": "910022a05",
+  "indexTypes": ["Deeds", "Mortgages", "UCC"],
+  "sortOrder": "FILE DATE DESC",      // Or FILE DATE ASC
+  "exportMode": "ExportDataOnly"
+}
+
+
+==============By PRE 1980==========
+
+{
+ "searchMode": "ByPre1980",
+  "pre1980Year": "1971",
+  "pre1980Number": "1",
+  "pre1980IndexType": "All",
+  "exportMode": "ExportDataOnly"    // ["%", "PDE", "PMT"]
+}

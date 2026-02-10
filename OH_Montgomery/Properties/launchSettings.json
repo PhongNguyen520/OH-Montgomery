@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "OH_Montgomery": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:54601;http://localhost:54602"
+    }
+  }
+}

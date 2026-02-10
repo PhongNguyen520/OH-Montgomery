@@ -1,0 +1,7 @@
+{
+  "actorSpecification": 1,
+  "name": "oh-montgomery",
+  "title": "OH_Montgomery RISS Scraper",
+  "version": "1.0",
+  "dockerfile": "./Dockerfile"
+}

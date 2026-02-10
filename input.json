@@ -1,0 +1,15 @@
+{
+  "searchMode": "ByDate",
+  "startDate": "2026-02-06",
+  "endDate": "2026-02-06",
+  "indexTypes": [
+      "Deeds",
+      "Mortgages",
+      "Partnerships",
+      "UCC",
+      "Service Discharge"
+  ],
+  "exportMode": "All",
+  "sortOrder": "FILE DATE ASC",
+  "twoCaptchaApiKey": "a89943508c6c855c1238267eff27f01c"
+}

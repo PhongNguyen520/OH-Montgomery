@@ -1,0 +1,23 @@
+{
+  "title": "OH_Montgomery RISS Scraper Input",
+  "description": "Search and export deed/mortgage records from riss.mcrecorder.org. Enter configuration as JSON.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "input": {
+      "title": "Configuration (JSON)",
+      "type": "object",
+      "description": "Enter the full search configuration as JSON. exportMode: ExportDataOnly | ExportImagesFirst/ExportImagesOnly | All. ByDate: {\"searchMode\":\"ByDate\",\"startDate\":\"2026-02-06\",\"endDate\":\"2026-02-06\",\"indexTypes\":[\"Deeds\",\"Mortgages\"],\"exportMode\":\"ExportDataOnly\",\"sortOrder\":\"FILE DATE ASC\"}. ByName: {\"searchMode\":\"ByName\",\"lastName\":\"SMITH\",\"firstName\":\"JOHN\",\"side\":\"Both\",\"startDate\":\"2026-01-01\",\"endDate\":\"2026-02-06\",\"indexTypes\":[\"Deeds\",\"Mortgages\"],\"exportMode\":\"ExportDataOnly\",\"sortOrder\":\"FILE DATE ASC\"}. ByInstrument: {\"searchMode\":\"ByInstrument\",\"instrumentYear\":\"2024\",\"instrumentNumber\":\"12345\",\"indexTypes\":[\"Deeds\",\"Mortgages\"],\"exportMode\":\"ExportDataOnly\",\"sortOrder\":\"FILE DATE ASC\",\"twoCaptchaApiKey\":\"...\"}. ByBookPage: {\"searchMode\":\"ByBookPage\",\"book\":\"2000\",\"page\":\"100\",\"pageThru\":\"\",\"bookPageIndexType\":\"All\",\"exportMode\":\"ExportDataOnly\"}. ByFiche: {\"searchMode\":\"ByFiche\",\"fiche\":\"910022a05\",\"indexTypes\":[\"Deeds\",\"Mortgages\",\"UCC\"],\"sortOrder\":\"FILE DATE DESC\",\"exportMode\":\"ExportDataOnly\"}. ByPre1980: {\"searchMode\":\"ByPre1980\",\"pre1980Year\":\"1971\",\"pre1980Number\":\"1234\",\"pre1980IndexType\":\"All\",\"exportMode\":\"ExportDataOnly\"}. pre1980Year: 1971-1979. pre1980IndexType: All, PDE, PMT. bookPageIndexType: All, DEED, MTG, PLT. twoCaptchaApiKey required for ByDate/ByInstrument only.",
+      "editor": "json",
+      "prefill": {
+        "searchMode": "ByDate",
+        "startDate": "2026-02-06",
+        "endDate": "2026-02-06",
+        "indexTypes": ["Deeds", "Mortgages", "Partnerships", "UCC", "Service Discharge"],
+        "exportMode": "ExportDataOnly",
+        "sortOrder": "FILE DATE ASC"
+      }
+    }
+  },
+  "required": ["input"]
+}
