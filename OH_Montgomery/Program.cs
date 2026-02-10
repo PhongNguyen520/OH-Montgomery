@@ -48,6 +48,8 @@ class Program
 
         try
         {
+            input.ValidateExportMode();
+            input.ValidateByDate();
             input.ValidateByName();
             input.ValidateByType();
             input.ValidateByMunicipality();
@@ -1677,7 +1679,7 @@ class Program
     }
 
     static async Task<(IBrowserContext ctx, IPage page, int rowCount, int fileNumberColIndex, int fileDateColIndex, int imageColIndex, string tableSelector, bool isByName)> CreateContextAndLoadResultsAsync(
-        IBrowser browser, ActorInput input, bool needsCaptcha)
+        IBrowser browser, ActorInput input, bool needsCaptcha, bool hasRetriedCaptcha = false)
     {
         var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {
@@ -1885,6 +1887,25 @@ class Program
         }
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         Console.WriteLine($"[Search] Page URL after submit: {page.Url}");
+
+        // If captcha is incorrect, the site shows a #badCaptcha modal instead of results.
+        // In that case, reload and retry the whole flow once with a new captcha.
+        if (needsCaptcha)
+        {
+            var badCaptcha = page.Locator("#badCaptcha").First;
+            if (await badCaptcha.CountAsync() > 0 && await badCaptcha.IsVisibleAsync())
+            {
+                Console.WriteLine("[Captcha] Incorrect captcha detected after submit.");
+                if (!hasRetriedCaptcha)
+                {
+                    Console.WriteLine("[Captcha] Reloading and retrying search one more time...");
+                    try { await context.CloseAsync(); } catch { }
+                    return await CreateContextAndLoadResultsAsync(browser, input, needsCaptcha, true);
+                }
+
+                throw new InvalidOperationException("Captcha was incorrect even after retrying once.");
+            }
+        }
 
         var resultErrorEl = page.GetByText("Record Count Exceeds").First;
         if (await resultErrorEl.CountAsync() > 0)
