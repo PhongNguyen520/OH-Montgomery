@@ -496,8 +496,7 @@ class Program
                                         var grantor = await GetDetailValueList(page, "GRANTORS");
                                         if (string.IsNullOrEmpty(grantor)) grantor = await GetDetailValueList(page, "MORTGAGORS");
                                         record.Grantor = grantor;
-                                        var grantee = await GetDetailValueList(page, "GRANTEES");
-                                        if (string.IsNullOrEmpty(grantee)) grantee = await GetDetailValueList(page, "MORTGAGEES");
+                                        record.Grantee = await GetGranteeValueList(page);
                                         record.Reference = await GetDetailValueList(page, "REFERENCES");
                                         record.Remarks = await GetRemarksList(page);
                                         record.Legal = await GetDetailValueList(page, "LEGAL");
@@ -523,8 +522,7 @@ class Program
                                             var grantor = await GetDetailValueList(detailPage, "GRANTORS");
                                             if (string.IsNullOrEmpty(grantor)) grantor = await GetDetailValueList(detailPage, "MORTGAGORS");
                                             record.Grantor = grantor;
-                                            var grantee = await GetDetailValueList(detailPage, "GRANTEES");
-                                            if (string.IsNullOrEmpty(grantee)) grantee = await GetDetailValueList(detailPage, "MORTGAGEES");
+                                            record.Grantee = await GetGranteeValueList(detailPage);
                                             record.Reference = await GetDetailValueList(detailPage, "REFERENCES");
                                             record.Remarks = await GetRemarksList(detailPage);
                                             record.Legal = await GetDetailValueList(detailPage, "LEGAL");
@@ -1614,33 +1612,69 @@ class Program
         return "";
     }
 
+    /// <summary>Extract multi-value field (e.g. MORTGAGEES / GRANTEES) from Document information panel.
+    /// Label is in span.informationTitle; values are in the adjacent cell with class informationData
+    /// (can be &lt;div class="informationData"&gt; or &lt;p class="informationData"&gt;). Returns values joined with "; ".</summary>
     static async Task<string> GetDetailValueList(IPage page, string label)
     {
         try
         {
-            var group = page.Locator("div.input-group").Filter(new() { Has = page.Locator($"span.informationTitle:has-text('{label}')") }).First;
-            if (await group.CountAsync() == 0) return "";
-            var dataEl = group.Locator(".informationData");
+            // Data cell can be div.informationData OR p.informationData — use class selector only
+            var dataEl = page.Locator($"div.input-group:has(span.informationTitle:has-text('{label}')) >> .informationData").First;
             if (await dataEl.CountAsync() == 0) return "";
+
             var parts = new List<string>();
-            var childTags = dataEl.Locator("p, div");
-            var n = await childTags.CountAsync();
-            if (n > 0)
+            // Prefer direct <p> children (OH-Montgomery uses <p style="line-height: 50%;"> per name)
+            var pTags = dataEl.Locator("> p");
+            var pCount = await pTags.CountAsync();
+            if (pCount > 0)
             {
-                for (var i = 0; i < n; i++)
+                for (var i = 0; i < pCount; i++)
                 {
-                    var t = (await childTags.Nth(i).InnerTextAsync()).Trim();
-                    if (!string.IsNullOrEmpty(t)) parts.Add(t);
+                    var t = (await pTags.Nth(i).InnerTextAsync()).Trim();
+                    if (!string.IsNullOrWhiteSpace(t)) parts.Add(t);
                 }
             }
             else
             {
-                var t = (await dataEl.InnerTextAsync()).Trim();
-                if (!string.IsNullOrEmpty(t)) parts.Add(t);
+                // Fallback: any block elements (p, div) or split by newline/br
+                var childTags = dataEl.Locator("p, div");
+                var n = await childTags.CountAsync();
+                if (n > 0)
+                {
+                    for (var i = 0; i < n; i++)
+                    {
+                        var t = (await childTags.Nth(i).InnerTextAsync()).Trim();
+                        if (!string.IsNullOrWhiteSpace(t)) parts.Add(t);
+                    }
+                }
+                else
+                {
+                    var full = (await dataEl.InnerTextAsync()).Trim();
+                    if (!string.IsNullOrWhiteSpace(full))
+                    {
+                        var lineParts = full.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim())
+                            .Where(s => !string.IsNullOrWhiteSpace(s));
+                        parts.AddRange(lineParts);
+                    }
+                }
             }
-            return string.Join(";", parts.Where(s => !string.IsNullOrWhiteSpace(s)));
+            return string.Join("; ", parts);
         }
         catch { }
+        return "";
+    }
+
+    /// <summary>Get Grantee field by trying document-type-specific labels (GRANTEES, MORTGAGEES, ASSIGNEES, etc.).</summary>
+    static async Task<string> GetGranteeValueList(IPage page)
+    {
+        var labels = new[] { "GRANTEES", "MORTGAGEES", "ASSIGNEES", "GRANTEE", "MORTGAGEE", "ASSIGNEE" };
+        foreach (var label in labels)
+        {
+            var value = await GetDetailValueList(page, label);
+            if (!string.IsNullOrWhiteSpace(value)) return value;
+        }
         return "";
     }
 
