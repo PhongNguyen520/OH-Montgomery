@@ -81,17 +81,24 @@ class Program
         Console.WriteLine($"[1] Config loaded: SearchMode={input.SearchMode}, ExportMode={input.ExportMode}");
         Console.WriteLine();
 
-        try
-        {
-            // --- Phase 2: Launch Playwright and navigate ---
-            Console.WriteLine("[2] Checking Playwright...");
-            Microsoft.Playwright.Program.Main(["install", "chromium"]);
-            Console.WriteLine("    Chromium ready.");
+        int maxRetries = 3;
+        IBrowser? browser = null;
 
-            Console.WriteLine("[3] Launching Chromium...");
-            var playwright = await Playwright.CreateAsync();
-            var isApify = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APIFY_CONTAINER_PORT"));
-            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                await ApifyHelper.SetStatusMessageAsync($"Attempt {attempt} of {maxRetries}...");
+
+                // --- Phase 2: Launch Playwright and navigate ---
+                Console.WriteLine("[2] Checking Playwright...");
+                Microsoft.Playwright.Program.Main(["install", "chromium"]);
+                Console.WriteLine("    Chromium ready.");
+
+                Console.WriteLine("[3] Launching Chromium...");
+                var playwright = await Playwright.CreateAsync();
+                var isApify = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APIFY_CONTAINER_PORT"));
+                browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = isApify,
                 Timeout = 60000,
@@ -581,12 +588,20 @@ class Program
             Console.WriteLine();
             Console.WriteLine("[12] Done. Closing browser...");
             await browser.CloseAsync();
-        }
-        catch (Exception ex)
-        {
-            await ApifyHelper.SetStatusMessageAsync($"Fatal Error: {ex.Message}", isTerminal: true);
-            Console.WriteLine($"ERROR: {ex}");
-            Environment.Exit(1);
+            break;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Attempt {attempt}] Error: {ex.Message}");
+                try { if (browser != null) await browser.CloseAsync(); } catch { }
+                if (attempt == maxRetries)
+                {
+                    await ApifyHelper.SetStatusMessageAsync($"Fatal Error after {maxRetries} attempts: {ex.Message}", isTerminal: true);
+                    throw;
+                }
+                await ApifyHelper.SetStatusMessageAsync($"Attempt {attempt} failed. Retrying in 10 seconds...");
+                await Task.Delay(10000);
+            }
         }
     }
 
