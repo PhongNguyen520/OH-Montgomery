@@ -3,10 +3,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using CsvHelper;
 using CsvHelper.Configuration;
+using ImageMagick;
 using Microsoft.Playwright;
 using OH_Montgomery;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Tiff;
 
 class Program
 {
@@ -33,6 +32,7 @@ class Program
         var input = ApifyHelper.GetInput<ActorInput>();
         if (input == null)
         {
+            await ApifyHelper.SetStatusMessageAsync("Error: Failed to load input.", isTerminal: true);
             Console.WriteLine("ERROR: Failed to load input.");
             Environment.Exit(1);
         }
@@ -45,6 +45,8 @@ class Program
         if (input.IndexTypes.Length == 0) input.IndexTypes = ["Deeds", "Mortgages"];
 
         LogInput(input);
+
+        await ApifyHelper.SetStatusMessageAsync($"Starting scrape for {input.SearchMode}...");
 
         try
         {
@@ -62,6 +64,7 @@ class Program
         }
         catch (InvalidOperationException ex)
         {
+            await ApifyHelper.SetStatusMessageAsync($"Validation Error: {ex.Message}", isTerminal: true);
             Console.WriteLine($"ERROR: {ex.Message}");
             Environment.Exit(1);
         }
@@ -70,6 +73,7 @@ class Program
             || string.Equals(input.SearchMode, "ByInstrument", StringComparison.OrdinalIgnoreCase);
         if (needsCaptcha && string.IsNullOrWhiteSpace(input.TwoCaptchaApiKey) && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("TWO_CAPTCHA_API_KEY")))
         {
+            await ApifyHelper.SetStatusMessageAsync("Error: Captcha required. Provide twoCaptchaApiKey.", isTerminal: true);
             Console.WriteLine("ERROR: By Date and By Instrument modes require captcha. Provide 'twoCaptchaApiKey' in input or set TWO_CAPTCHA_API_KEY env var.");
             Environment.Exit(1);
         }
@@ -118,6 +122,7 @@ class Program
             catch (Exception ex)
             {
                 var is500Limit = ex is InvalidOperationException && ex.Message.Contains("Record Count Exceeds", StringComparison.OrdinalIgnoreCase);
+                await ApifyHelper.SetStatusMessageAsync($"Error: {ex.Message}", isTerminal: true);
                 if (!is500Limit) Console.WriteLine($"    Error: {ex.Message}");
                 else Console.WriteLine("    Exiting.");
                 await browser.CloseAsync();
@@ -135,10 +140,13 @@ class Program
 
                 if (rowCount == 0)
                 {
+                    await ApifyHelper.SetStatusMessageAsync("Finished: No records found for the given criteria.", isTerminal: true);
                     Console.WriteLine("    No records. Exiting.");
                     await browser.CloseAsync();
                     return;
                 }
+
+                await ApifyHelper.SetStatusMessageAsync($"Processing {rowCount} records...");
 
                 var dateForFilename = input.GetDateForFilename();
                 var baseDir = Directory.GetCurrentDirectory();
@@ -164,7 +172,11 @@ class Program
                 {
                     for (var r = 0; r < rowCount; r++)
                     {
-                        if ((r + 1) % 10 == 0) Console.WriteLine($"    Row {r + 1}/{rowCount}...");
+                        if ((r + 1) % 10 == 0)
+                        {
+                            await ApifyHelper.SetStatusMessageAsync($"Processing row {r + 1} of {rowCount}...");
+                            Console.WriteLine($"    Row {r + 1}/{rowCount}...");
+                        }
                         grid = page.Locator(tableSelector);
                         dataRows = grid.Locator("tbody tr");
                         var row = dataRows.Nth(r);
@@ -342,21 +354,19 @@ class Program
                                                 var base64ArrFolder = base64ListFolder.ToArray();
                                                 if (base64ArrFolder.Length > 0)
                                                 {
-                                                    for (var i = 0; i < base64ArrFolder.Length; i++)
+                                                    try
                                                     {
-                                                        if (string.IsNullOrEmpty(base64ArrFolder[i])) continue;
-                                                        try
-                                                        {
-                                                            var pngBytes = Convert.FromBase64String(base64ArrFolder[i]);
-                                                            var bytes = ConvertPngToTiff(pngBytes);
-                                                            var fileName = base64ArrFolder.Length > 1 ? $"{baseNameForFolder}-{i + 1}.tif" : $"{baseNameForFolder}.tif";
-                                                            var kvKey = $"Images/{dateForFilename}/{baseNameForFolder}/{fileName}";
-                                                            await ApifyHelper.SaveImageAsync(kvKey, bytes);
-                                                            if (input.ExportAll) imageLinks.Add(ApifyHelper.GetRecordUrl(kvKey));
-                                                            Console.WriteLine($"      Saved: {kvKey}");
-                                                        }
-                                                        catch (Exception ex) { Console.WriteLine($"      Save error: {ex.Message}"); }
+                                                        // Merge all pages into ONE highly compressed TIF file
+                                                        var bytes = CreateMultiPageCompressedTiff(base64ArrFolder);
+                                                        var fileName = $"{baseNameForFolder}.tif";
+                                                        var kvKey = $"Images/{dateForFilename}/{baseNameForFolder}/{fileName}";
+
+                                                        await ApifyHelper.SaveImageAsync(kvKey, bytes);
+                                                        if (input.ExportAll) imageLinks.Add(ApifyHelper.GetRecordUrl(kvKey));
+
+                                                        Console.WriteLine($"      Saved Multi-page TIF ({base64ArrFolder.Length} pages): {kvKey}");
                                                     }
+                                                    catch (Exception ex) { Console.WriteLine($"      Save error: {ex.Message}"); }
                                                 }
                                             }
                                         }
@@ -442,21 +452,19 @@ class Program
                                     var base64Arr = base64List.ToArray();
                                     if (base64Arr.Length > 0)
                                     {
-                                        for (var i = 0; i < base64Arr.Length; i++)
+                                        try
                                         {
-                                            if (string.IsNullOrEmpty(base64Arr[i])) continue;
-                                            try
-                                            {
-                                                var pngBytes = Convert.FromBase64String(base64Arr[i]);
-                                                var bytes = ConvertPngToTiff(pngBytes);
-                                                var fileName = base64Arr.Length > 1 ? $"{baseName}-{i + 1}.tif" : $"{baseName}.tif";
-                                                var kvKey = $"Images/{dateForFilename}/{baseName}/{fileName}";
-                                                await ApifyHelper.SaveImageAsync(kvKey, bytes);
-                                                if (input.ExportAll) imageLinks.Add(ApifyHelper.GetRecordUrl(kvKey));
-                                                Console.WriteLine($"      Saved: {kvKey}");
-                                            }
-                                            catch (Exception ex) { Console.WriteLine($"      Save error: {ex.Message}"); }
+                                            // Merge all pages into ONE highly compressed TIF file
+                                            var bytes = CreateMultiPageCompressedTiff(base64Arr);
+                                            var fileName = $"{baseName}.tif";
+                                            var kvKey = $"Images/{dateForFilename}/{baseName}/{fileName}";
+
+                                            await ApifyHelper.SaveImageAsync(kvKey, bytes);
+                                            if (input.ExportAll) imageLinks.Add(ApifyHelper.GetRecordUrl(kvKey));
+
+                                            Console.WriteLine($"      Saved Multi-page TIF ({base64Arr.Length} pages): {kvKey}");
                                         }
+                                        catch (Exception ex) { Console.WriteLine($"      Save error: {ex.Message}"); }
                                     }
                                 }
                                 catch (Exception ex) { Console.WriteLine($"    Row {r + 1} image error: {ex.Message}"); }
@@ -558,11 +566,13 @@ class Program
                     }
                 }
 
+                await ApifyHelper.SetStatusMessageAsync($"Success: Exported {rowCount} records to CSV and Dataset.", isTerminal: true);
                 Console.WriteLine($"    Exported {rowCount} records to CSV and Apify dataset.");
                 Console.WriteLine($"    Also saved CSV: {outputPath}");
             }
             else
             {
+                await ApifyHelper.SetStatusMessageAsync("Finished: No table or grid found.", isTerminal: true);
                 Console.WriteLine($"    Table ({tableSelector}) not found or empty. Exiting.");
                 await browser.CloseAsync();
                 return;
@@ -574,19 +584,44 @@ class Program
         }
         catch (Exception ex)
         {
+            await ApifyHelper.SetStatusMessageAsync($"Fatal Error: {ex.Message}", isTerminal: true);
             Console.WriteLine($"ERROR: {ex}");
             Environment.Exit(1);
         }
     }
 
-    /// <summary>Convert PNG bytes to TIFF bytes for storage.</summary>
-    static byte[] ConvertPngToTiff(byte[] pngBytes)
+   /// <summary>
+    /// Converts multiple base64 PNG/JPEG strings into a single Multi-page TIFF byte array,
+    /// applying CCITT Group 4 compression to drastically reduce file size.
+    /// </summary>
+    static byte[] CreateMultiPageCompressedTiff(string[] base64Images)
     {
-        using var input = new MemoryStream(pngBytes);
-        using var image = Image.Load(input);
-        using var output = new MemoryStream();
-        image.Save(output, new TiffEncoder());
-        return output.ToArray();
+        using var collection = new MagickImageCollection();
+        foreach (var b64 in base64Images)
+        {
+            if (string.IsNullOrWhiteSpace(b64)) continue;
+
+            var imgBytes = Convert.FromBase64String(b64);
+            var image = new MagickImage(imgBytes);
+
+            // CCITT Group 4 requires a monochrome (1-bit) image.
+            image.ColorSpace = ColorSpace.Gray;
+            image.Format = MagickFormat.Tif;
+            image.Settings.Compression = CompressionMethod.Group4;
+            // Force to true monochrome to ensure maximum compression
+            image.Threshold(new Percentage(50));
+
+            // Important: Set the density (resolution) to ensure it prints/displays correctly
+            image.Density = new Density(300, 300);
+
+            collection.Add(image);
+        }
+
+        using var outputStream = new MemoryStream();
+        // The Write method on a collection with MagickFormat.Tif will automatically 
+        // create a multi-page TIFF document containing all images in the collection.
+        collection.Write(outputStream, MagickFormat.Tif);
+        return outputStream.ToArray();
     }
 
     static async Task<string?> ExtractCaptchaBase64Async(IPage page)
