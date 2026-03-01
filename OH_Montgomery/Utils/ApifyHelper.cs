@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace OH_Montgomery;
+namespace OH_Montgomery.Services;
 
 /// <summary>
 /// Helper for Apify Actor lifecycle. Reads input from apify_storage/input.json and writes dataset.

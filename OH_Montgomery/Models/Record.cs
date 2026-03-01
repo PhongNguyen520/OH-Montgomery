@@ -1,6 +1,6 @@
 using CsvHelper.Configuration.Attributes;
 
-namespace OH_Montgomery;
+namespace OH_Montgomery.Models;
 
 /// <summary>
 /// Scraped record per Data File Formatting Rules. 15 columns, pipe delimiter, semicolon for nested lists.

@@ -2,7 +2,7 @@ using System.Net.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace OH_Montgomery;
+namespace OH_Montgomery.Services;
 
 /// <summary>
 /// Helper for solving image captchas via 2Captcha API (Normal Image Captcha).

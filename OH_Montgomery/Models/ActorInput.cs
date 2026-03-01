@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace OH_Montgomery;
+namespace OH_Montgomery.Models;
 
 /// <summary>
 /// Apify Actor input schema. Maps to input_schema.json.
