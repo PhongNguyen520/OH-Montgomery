@@ -78,12 +78,7 @@ public class ScraperService
                 return;
             }
 
-            const int TestLimit = 5;
-            var rowsToProcess = Math.Min(rowCount, TestLimit);
-            if (rowCount > TestLimit)
-                Console.WriteLine($"[OH_Montgomery] Limiting to {TestLimit} records for test (total {rowCount} skipped).");
-
-            await ApifyHelper.SetStatusMessageAsync($"Processing {rowsToProcess} records...");
+            await ApifyHelper.SetStatusMessageAsync($"Processing {rowCount} records...");
 
             var dateForFilename = input.GetDateForFilename();
             var baseDir = Directory.GetCurrentDirectory();
@@ -110,12 +105,12 @@ public class ScraperService
             await using (var writer = new StreamWriter(outputPath, append: false))
             using (var csv = new CsvWriter(writer, csvConfig))
             {
-                for (var r = 0; r < rowsToProcess; r++)
+                for (var r = 0; r < rowCount; r++)
                 {
                     if ((r + 1) % 10 == 0)
                     {
-                        await ApifyHelper.SetStatusMessageAsync($"Processing row {r + 1} of {rowsToProcess}...");
-                        Console.WriteLine($"    Row {r + 1}/{rowsToProcess}...");
+                        await ApifyHelper.SetStatusMessageAsync($"Processing row {r + 1} of {rowCount}...");
+                        Console.WriteLine($"    Row {r + 1}/{rowCount}...");
                     }
                     grid = page!.Locator(tableSelector);
                     dataRows = grid.Locator("tbody tr");
@@ -501,7 +496,7 @@ public class ScraperService
                 }
             }
 
-            await ApifyHelper.SetStatusMessageAsync($"Finished! Total {rowsToProcess} requests: {succeeded} succeeded, {failed} failed.", isTerminal: true);
+            await ApifyHelper.SetStatusMessageAsync($"Finished! Total {rowCount} requests: {succeeded} succeeded, {failed} failed.", isTerminal: true);
             Console.WriteLine($"    Exported {rowCount} records to CSV and Apify dataset.");
             Console.WriteLine($"    Also saved CSV: {outputPath}");
         }
