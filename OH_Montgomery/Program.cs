@@ -81,65 +81,87 @@ class Program
         Console.WriteLine($"[1] Config loaded: SearchMode={input.SearchMode}, ExportMode={input.ExportMode}");
         Console.WriteLine();
 
-        int maxRetries = 3;
-        IBrowser? browser = null;
+        try
+        {
+            Console.WriteLine("[2] Checking Playwright...");
+        Microsoft.Playwright.Program.Main(["install", "chromium"]);
+        Console.WriteLine("    Chromium ready.");
 
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
+        Console.WriteLine("[3] Launching Chromium...");
+        var playwright = await Playwright.CreateAsync();
+        var isApify = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APIFY_CONTAINER_PORT"));
+        var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        {
+            Headless = isApify,
+            Timeout = 60000,
+            Args = new[]
+            {
+                "--disable-popup-blocking",
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--disable-extensions",
+                "--disable-background-networking",
+                "--disable-default-apps",
+                "--disable-sync",
+                "--no-first-run",
+                "--disable-software-rasterizer",
+                "--disable-features=VizDisplayCompositor",
+                "--disk-cache-size=0",
+                "--media-cache-size=0",
+                "--mute-audio"
+            }
+        });
+
+        Console.WriteLine("[4-11] Creating context and loading results...");
+        IBrowserContext? context = null;
+        IPage? page = null;
+        int rowCount = 0, fileNumberColIndex = 0, fileDateColIndex = 0, imageColIndex = 0;
+        string tableSelector = "";
+        bool isFormSubmitMode = false;
+
+        int searchRetries = 3;
+        bool searchSuccess = false;
+
+        for (int attempt = 1; attempt <= searchRetries; attempt++)
         {
             try
             {
-                await ApifyHelper.SetStatusMessageAsync($"Attempt {attempt} of {maxRetries}...");
-
-                // --- Phase 2: Launch Playwright and navigate ---
-                Console.WriteLine("[2] Checking Playwright...");
-                Microsoft.Playwright.Program.Main(["install", "chromium"]);
-                Console.WriteLine("    Chromium ready.");
-
-                Console.WriteLine("[3] Launching Chromium...");
-                var playwright = await Playwright.CreateAsync();
-                var isApify = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APIFY_CONTAINER_PORT"));
-                browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-            {
-                Headless = isApify,
-                Timeout = 60000,
-                Args = new[]
-                {
-                    "--disable-popup-blocking",
-                    "--disable-gpu",
-                    "--disable-dev-shm-usage",
-                    "--disable-extensions",
-                    "--disable-background-networking",
-                    "--disable-default-apps",
-                    "--disable-sync",
-                    "--no-first-run",
-                    "--disable-software-rasterizer",
-                    "--disable-features=VizDisplayCompositor",
-                    "--disk-cache-size=0",
-                    "--media-cache-size=0",
-                    "--mute-audio"
-                }
-            });
-
-            Console.WriteLine("[4-11] Creating context and loading results...");
-            IBrowserContext context; IPage page; int rowCount; int fileNumberColIndex; int fileDateColIndex; int imageColIndex; string tableSelector; bool isFormSubmitMode;
-            try
-            {
-                (context, page, rowCount, fileNumberColIndex, fileDateColIndex, imageColIndex, tableSelector, isFormSubmitMode) = await CreateContextAndLoadResultsAsync(browser, input, needsCaptcha);
+                await ApifyHelper.SetStatusMessageAsync($"Search attempt {attempt} of {searchRetries}...");
+                (context, page, rowCount, fileNumberColIndex, fileDateColIndex, imageColIndex, tableSelector, isFormSubmitMode) =
+                    await CreateContextAndLoadResultsAsync(browser, input, needsCaptcha);
+                searchSuccess = true;
+                break;
             }
             catch (Exception ex)
             {
                 var is500Limit = ex is InvalidOperationException && ex.Message.Contains("Record Count Exceeds", StringComparison.OrdinalIgnoreCase);
-                await ApifyHelper.SetStatusMessageAsync($"Error: {ex.Message}", isTerminal: true);
-                if (!is500Limit) Console.WriteLine($"    Error: {ex.Message}");
-                else Console.WriteLine("    Exiting.");
-                await browser.CloseAsync();
-                return;
-            }
-            Console.WriteLine("    Grid loaded.");
-            Console.WriteLine();
+                if (is500Limit)
+                {
+                    await ApifyHelper.SetStatusMessageAsync($"Error: {ex.Message}", isTerminal: true);
+                    Console.WriteLine($"    Error: {ex.Message} - Exiting.");
+                    await browser.CloseAsync();
+                    return;
+                }
 
-            // --- Scrape ---
-            var grid = page.Locator(tableSelector);
+                Console.WriteLine($"    [Attempt {attempt}] Search failed: {ex.Message}");
+                if (context != null) { try { await context.CloseAsync(); } catch { } }
+
+                if (attempt == searchRetries)
+                {
+                    await ApifyHelper.SetStatusMessageAsync($"Fatal Error during search after {searchRetries} attempts: {ex.Message}", isTerminal: true);
+                    await browser.CloseAsync();
+                    return;
+                }
+
+                await Task.Delay(5000);
+            }
+        }
+
+        if (!searchSuccess) return;
+        Console.WriteLine("    Grid loaded.");
+        Console.WriteLine();
+
+        var grid = page!.Locator(tableSelector);
             if (await grid.CountAsync() > 0)
             {
                 var dataRows = grid.Locator("tbody tr");
@@ -165,7 +187,7 @@ class Program
                 }
                 var shouldDownloadImages = input.ShouldExportImages && imageColIndex >= 0;
                 if (shouldDownloadImages)
-                    try { await context.GrantPermissionsAsync(new[] { "clipboard-read", "clipboard-write", "storage-access" }, new BrowserContextGrantPermissionsOptions { Origin = "https://onbase.mcohio.org" }); } catch { }
+                    try { await context!.GrantPermissionsAsync(new[] { "clipboard-read", "clipboard-write", "storage-access" }, new BrowserContextGrantPermissionsOptions { Origin = "https://onbase.mcohio.org" }); } catch { }
 
                 Console.WriteLine($"    ExportMode={input.ExportMode}, imageColIndex={imageColIndex}, shouldDownloadImages={shouldDownloadImages}");
                 Console.WriteLine($"    Processing rows: image + detail per row, batch 10 to CSV (Images/{dateForFilename}/...)");
@@ -184,7 +206,7 @@ class Program
                             await ApifyHelper.SetStatusMessageAsync($"Processing row {r + 1} of {rowCount}...");
                             Console.WriteLine($"    Row {r + 1}/{rowCount}...");
                         }
-                        grid = page.Locator(tableSelector);
+                        grid = page!.Locator(tableSelector);
                         dataRows = grid.Locator("tbody tr");
                         var row = dataRows.Nth(r);
                         var cells = row.Locator("td");
@@ -194,7 +216,6 @@ class Program
                         var record = new Record();
                         record.RecordingDate = fileDateColIndex >= 0 && fileDateColIndex < cellCount ? (await cells.Nth(fileDateColIndex).InnerTextAsync()).Trim() : "";
 
-                        // By Book/Page: table has ROW, TYPE, BOOK or BOOK-PREFIX, PAGE, IMAGE(s); no detail page
                         if (input.IsByBookPage && cellCount >= 4)
                         {
                             record.DocumentType = (await cells.Nth(1).InnerTextAsync()).Trim();
@@ -203,7 +224,6 @@ class Program
                             record.BookType = record.DocumentType;
                             record.DocumentNumber = $"{record.Book}-{record.Page}".TrimEnd('-');
                         }
-                        // By Pre-1980: table has ROW, TYPE, INSTRUMENT, IMAGE(s); no detail page
                         else if (input.IsByPre1980 && cellCount >= 4)
                         {
                             record.DocumentType = (await cells.Nth(1).InnerTextAsync()).Trim();
@@ -224,7 +244,7 @@ class Program
                                 {
                                     await page.BringToFrontAsync();
                                     await page.WaitForTimeoutAsync(300);
-                                    imgPage = await context.RunAndWaitForPageAsync(async () => { await cameraLink.ClickAsync(); }, new BrowserContextRunAndWaitForPageOptions { Timeout = 30000 });
+                                    imgPage = await context!.RunAndWaitForPageAsync(async () => { await cameraLink.ClickAsync(); }, new BrowserContextRunAndWaitForPageOptions { Timeout = 30000 });
                                     await imgPage.BringToFrontAsync();
                                     imgPage.SetDefaultTimeout(35000);
                                     await imgPage.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
@@ -232,11 +252,8 @@ class Program
                                     await imgPage.WaitForLoadStateAsync(LoadState.NetworkIdle);
                                     await imgPage.WaitForTimeoutAsync(6000);
 
-                                    // Some image pages first display a "Document Search Results" list in an iframe.
-                                    // In that case we must double-click each row (folder) in sequence to open the actual image viewer.
                                     try
                                     {
-                                        // Find iframe that contains the document select list
                                         IFrame? selectListFrame = null;
                                         foreach (var fr in imgPage.Frames)
                                         {
@@ -254,7 +271,6 @@ class Program
 
                                         if (selectListFrame != null)
                                         {
-                                            // Get all rows in the result grid, each row represents one "folder"
                                             var folderRows = selectListFrame.Locator("#primaryHitlist_grid tbody tr");
                                             var folderCount = await folderRows.CountAsync();
 
@@ -266,14 +282,12 @@ class Program
                                                 if (await firstCell.CountAsync() == 0)
                                                     continue;
 
-                                                // Double-click to open the folder / document
                                                 try
                                                 {
                                                     await firstCell.DblClickAsync();
                                                 }
                                                 catch
                                                 {
-                                                    // If DblClick fails, fall back to two single clicks
                                                     try
                                                     {
                                                         await firstCell.ClickAsync();
@@ -283,7 +297,6 @@ class Program
                                                     catch { }
                                                 }
 
-                                                // Wait for image viewer to appear
                                                 IFrame? viewerFrameForFolder = null;
                                                 for (var findAttempt = 0; findAttempt < 20; findAttempt++)
                                                 {
@@ -300,8 +313,6 @@ class Program
                                                     await imgPage.WaitForTimeoutAsync(1000);
                                                 }
 
-                                                // If we have an image viewer after the double-click,
-                                                // process all pages for this folder before moving to the next one.
                                                 if (viewerFrameForFolder == null)
                                                     continue;
 
@@ -318,7 +329,6 @@ class Program
                                                 }
                                                 await imgPage.WaitForTimeoutAsync(2000);
 
-                                                // Base name for the current folder to avoid overwriting files between folders
                                                 var baseNameForFolder = $"row{r + 1}_sel{frIndex + 1}";
 
                                                 var canvasSingleScriptFolder = @"() => {
@@ -363,7 +373,6 @@ class Program
                                                 {
                                                     try
                                                     {
-                                                        // Merge all pages into ONE highly compressed TIF file
                                                         var bytes = CreateMultiPageCompressedTiff(base64ArrFolder);
                                                         var fileName = $"{baseNameForFolder}.tif";
                                                         var kvKey = $"Images/{dateForFilename}/{baseNameForFolder}/{fileName}";
@@ -461,7 +470,6 @@ class Program
                                     {
                                         try
                                         {
-                                            // Merge all pages into ONE highly compressed TIF file
                                             var bytes = CreateMultiPageCompressedTiff(base64Arr);
                                             var fileName = $"{baseName}.tif";
                                             var kvKey = $"Images/{dateForFilename}/{baseName}/{fileName}";
@@ -499,7 +507,6 @@ class Program
                                 {
                                     if (isFormSubmitMode)
                                     {
-                                        // By Name: form submit navigates in same page; wait for docinfo then GoBack
                                         var navTask = page.WaitForURLAsync(url => url.Contains("docinfo", StringComparison.OrdinalIgnoreCase), new PageWaitForURLOptions { Timeout = 30000 });
                                         await clickTarget.ClickAsync();
                                         await navTask;
@@ -522,8 +529,7 @@ class Program
                                     }
                                     else
                                     {
-                                        // By Date: link opens in new tab; Ctrl+Click
-                                        var detailPage = await context.RunAndWaitForPageAsync(async () =>
+                                        var detailPage = await context!.RunAndWaitForPageAsync(async () =>
                                         {
                                             await clickTarget.ClickAsync(new LocatorClickOptions { Modifiers = new[] { KeyboardModifier.Control } });
                                         }, new BrowserContextRunAndWaitForPageOptions { Timeout = 30000 });
@@ -588,27 +594,16 @@ class Program
             Console.WriteLine();
             Console.WriteLine("[12] Done. Closing browser...");
             await browser.CloseAsync();
-            break;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Attempt {attempt}] Error: {ex.Message}");
-                try { if (browser != null) await browser.CloseAsync(); } catch { }
-                if (attempt == maxRetries)
-                {
-                    await ApifyHelper.SetStatusMessageAsync($"Fatal Error after {maxRetries} attempts: {ex.Message}", isTerminal: true);
-                    throw;
-                }
-                await ApifyHelper.SetStatusMessageAsync($"Attempt {attempt} failed. Retrying in 10 seconds...");
-                await Task.Delay(10000);
-            }
+        }
+        catch (Exception ex)
+        {
+            await ApifyHelper.SetStatusMessageAsync($"Fatal Error: {ex.Message}", isTerminal: true);
+            Console.WriteLine($"ERROR: {ex}");
+            throw;
         }
     }
 
-   /// <summary>
-    /// Converts multiple base64 PNG/JPEG strings into a single Multi-page TIFF byte array,
-    /// applying CCITT Group 4 compression to drastically reduce file size.
-    /// </summary>
+    /// <summary>Converts base64 images to single Multi-page TIFF with CCITT Group 4 compression.</summary>
     static byte[] CreateMultiPageCompressedTiff(string[] base64Images)
     {
         using var collection = new MagickImageCollection();
@@ -618,23 +613,15 @@ class Program
 
             var imgBytes = Convert.FromBase64String(b64);
             var image = new MagickImage(imgBytes);
-
-            // CCITT Group 4 requires a monochrome (1-bit) image.
             image.ColorSpace = ColorSpace.Gray;
             image.Format = MagickFormat.Tif;
             image.Settings.Compression = CompressionMethod.Group4;
-            // Force to true monochrome to ensure maximum compression
             image.Threshold(new Percentage(50));
-
-            // Important: Set the density (resolution) to ensure it prints/displays correctly
             image.Density = new Density(300, 300);
-
             collection.Add(image);
         }
 
         using var outputStream = new MemoryStream();
-        // The Write method on a collection with MagickFormat.Tif will automatically 
-        // create a multi-page TIFF document containing all images in the collection.
         collection.Write(outputStream, MagickFormat.Tif);
         return outputStream.ToArray();
     }
@@ -760,7 +747,6 @@ class Program
             "ByPre1980" => "BY PRE",
             _ => searchMode.ToUpperInvariant()
         };
-        // Match tab text (Exact=false: RISS may use "By Date" or "BY DATE"); wait for sidebar
         var tab = page.GetByText(tabText, new() { Exact = false });
         await tab.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
         await tab.First.ScrollIntoViewIfNeededAsync();
@@ -1662,19 +1648,15 @@ class Program
         return "";
     }
 
-    /// <summary>Extract multi-value field (e.g. MORTGAGEES / GRANTEES) from Document information panel.
-    /// Label is in span.informationTitle; values are in the adjacent cell with class informationData
-    /// (can be &lt;div class="informationData"&gt; or &lt;p class="informationData"&gt;). Returns values joined with "; ".</summary>
+    /// <summary>Extract multi-value field (e.g. MORTGAGEES/GRANTEES) from Document panel. Returns values joined with "; ".</summary>
     static async Task<string> GetDetailValueList(IPage page, string label)
     {
         try
         {
-            // Data cell can be div.informationData OR p.informationData — use class selector only
             var dataEl = page.Locator($"div.input-group:has(span.informationTitle:has-text('{label}')) >> .informationData").First;
             if (await dataEl.CountAsync() == 0) return "";
 
             var parts = new List<string>();
-            // Prefer direct <p> children (OH-Montgomery uses <p style="line-height: 50%;"> per name)
             var pTags = dataEl.Locator("> p");
             var pCount = await pTags.CountAsync();
             if (pCount > 0)
@@ -1687,7 +1669,6 @@ class Program
             }
             else
             {
-                // Fallback: any block elements (p, div) or split by newline/br
                 var childTags = dataEl.Locator("p, div");
                 var n = await childTags.CountAsync();
                 if (n > 0)
@@ -1804,7 +1785,6 @@ class Program
         await ClickSidebarTabAsync(page, input.SearchMode);
         await page.WaitForTimeoutAsync(1500);
 
-        // Ensure correct form is visible
         if (input.SearchMode.Trim().Equals("ByDate", StringComparison.OrdinalIgnoreCase))
         {
             var byDateField = page.Locator("#StartDateD, #StartDate, input[name='StartDate'], input[type='date']").First;
@@ -1972,8 +1952,6 @@ class Program
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         Console.WriteLine($"[Search] Page URL after submit: {page.Url}");
 
-        // If captcha is incorrect, the site shows a #badCaptcha modal instead of results.
-        // In that case, reload and retry the whole flow once with a new captcha.
         if (needsCaptcha)
         {
             var badCaptcha = page.Locator("#badCaptcha").First;
@@ -2010,7 +1988,6 @@ class Program
             catch { }
         }
 
-        // ByDate, ByType, ByMunicipality, BySubdivision, BySTR: #dataTable2. ByName: table.table-select. ByBookPage/ByPre1980: #dataTable13. ByBookPage: ROW,TYPE,BOOK,PAGE,IMAGE(s). ByPre1980: ROW,TYPE,INSTRUMENT,IMAGE(s).
         var tableSelector = (isByBookPage || isByPre1980) ? "#dataTable13" : ((isByType || isByMunicipality || isBySubdivision || isBySTR) ? "#dataTable2" : (isByName ? "table.table-select" : "#dataTable2"));
         var tableTimeout = isFormSubmitMode ? 45000 : 20000;
         await page.WaitForSelectorAsync(tableSelector, new PageWaitForSelectorOptions { Timeout = tableTimeout });
