@@ -78,7 +78,12 @@ public class ScraperService
                 return;
             }
 
-            await ApifyHelper.SetStatusMessageAsync($"Processing {rowCount} records...");
+            const int TestLimit = 5;
+            var rowsToProcess = Math.Min(rowCount, TestLimit);
+            if (rowCount > TestLimit)
+                Console.WriteLine($"[OH_Montgomery] Limiting to {TestLimit} records for test (total {rowCount} skipped).");
+
+            await ApifyHelper.SetStatusMessageAsync($"Processing {rowsToProcess} records...");
 
             var dateForFilename = input.GetDateForFilename();
             var baseDir = Directory.GetCurrentDirectory();
@@ -99,15 +104,18 @@ public class ScraperService
             Directory.CreateDirectory(kvStore);
             var outputPath = Path.Combine(kvStore, $"OH_Montgomery_{dateForFilename}.csv");
             var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture) { Delimiter = "|", HasHeaderRecord = true, ShouldQuote = args => true };
+            var succeeded = 0;
+            var failed = 0;
+
             await using (var writer = new StreamWriter(outputPath, append: false))
             using (var csv = new CsvWriter(writer, csvConfig))
             {
-                for (var r = 0; r < rowCount; r++)
+                for (var r = 0; r < rowsToProcess; r++)
                 {
                     if ((r + 1) % 10 == 0)
                     {
-                        await ApifyHelper.SetStatusMessageAsync($"Processing row {r + 1} of {rowCount}...");
-                        Console.WriteLine($"    Row {r + 1}/{rowCount}...");
+                        await ApifyHelper.SetStatusMessageAsync($"Processing row {r + 1} of {rowsToProcess}...");
+                        Console.WriteLine($"    Row {r + 1}/{rowsToProcess}...");
                     }
                     grid = page!.Locator(tableSelector);
                     dataRows = grid.Locator("tbody tr");
@@ -116,6 +124,8 @@ public class ScraperService
                     var cellCount = await cells.CountAsync();
                     if (cellCount == 0) continue;
 
+                    try
+                    {
                     var record = new Record();
                     record.RecordingDate = fileDateColIndex >= 0 && fileDateColIndex < cellCount ? (await cells.Nth(fileDateColIndex).InnerTextAsync()).Trim() : "";
 
@@ -459,6 +469,15 @@ public class ScraperService
                         }
                     }
                     buffer.Add(record);
+                    succeeded++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"    Row {r + 1} failed: {ex.Message}");
+                        failed++;
+                        continue;
+                    }
+
                     if ((r + 1) % 10 == 0) { GC.Collect(); GC.WaitForPendingFinalizers(); }
 
                     if (buffer.Count >= 10)
@@ -482,7 +501,7 @@ public class ScraperService
                 }
             }
 
-            await ApifyHelper.SetStatusMessageAsync($"Success: Exported {rowCount} records to CSV and Dataset.", isTerminal: true);
+            await ApifyHelper.SetStatusMessageAsync($"Finished! Total {rowsToProcess} requests: {succeeded} succeeded, {failed} failed.", isTerminal: true);
             Console.WriteLine($"    Exported {rowCount} records to CSV and Apify dataset.");
             Console.WriteLine($"    Also saved CSV: {outputPath}");
         }

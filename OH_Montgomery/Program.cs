@@ -4,15 +4,6 @@ using OH_Montgomery.Services;
 
 class Program
 {
-    static void LogInput(ActorInput input)
-    {
-        Console.WriteLine("[Input] Parsed config:");
-        Console.WriteLine($"  searchMode={input.SearchMode}, exportMode={input.ExportMode}, sortOrder={input.SortOrder}");
-        Console.WriteLine($"  startDate={input.StartDate ?? "(null)"}, endDate={input.EndDate ?? "(null)"}");
-        Console.WriteLine($"  side={input.Side ?? "(null)"}, indexTypes=[{string.Join(", ", input.IndexTypes ?? Array.Empty<string>())}]");
-        Console.WriteLine($"  twoCaptchaApiKey={(string.IsNullOrEmpty(input.TwoCaptchaApiKey) ? "(not set)" : "[set]")}");
-    }
-
     [STAThread]
     static void Main(string[] args)
     {
@@ -38,8 +29,6 @@ class Program
         input.Side = string.IsNullOrWhiteSpace(input.Side) ? "Both" : input.Side.Trim();
         input.IndexTypes ??= ["Deeds", "Mortgages"];
         if (input.IndexTypes.Length == 0) input.IndexTypes = ["Deeds", "Mortgages"];
-
-        LogInput(input);
 
         await ApifyHelper.SetStatusMessageAsync($"Starting scrape for {input.SearchMode}...");
 
@@ -73,7 +62,7 @@ class Program
             Environment.Exit(1);
         }
 
-        Console.WriteLine($"[1] Config loaded: SearchMode={input.SearchMode}, ExportMode={input.ExportMode}");
+        Console.WriteLine("[1] Config loaded.");
         Console.WriteLine();
 
         try
